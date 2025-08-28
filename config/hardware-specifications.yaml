@@ -1,0 +1,116 @@
+# blockchain Blockchain Hardware Specifications
+# Based on Dell PowerEdge R740 deployment environment
+
+blockchain_hardware:
+  server_model: "Dell PowerEdge R740"
+  rack_configuration: "2U rack-mounted server"
+  
+  cpu:
+    model: "Intel Xeon Gold 6240"
+    base_frequency: "2.60 GHz"
+    max_turbo_frequency: "3.90 GHz"
+    cores: 12
+    threads: 24
+    cache: "16.5 MB L3"
+    socket_count: 2
+    total_cores: 24
+    total_threads: 48
+    
+  memory:
+    total_capacity: "64 GB"
+    type: "DDR4-2400"
+    speed: "2400 MHz"
+    channels: 6
+    dimm_configuration: "8x 8GB DIMMs"
+    ecc_support: true
+    
+  gpu:
+    model: "NVIDIA GeForce RTX 2080 Ti"
+    memory: "11 GB GDDR6"
+    cuda_cores: 2944
+    base_clock: "1515 MHz"
+    memory_bandwidth: "448 GB/s"
+    pcie_interface: "PCIe 3.0 x16"
+    
+  storage:
+    primary_storage:
+      type: "NVMe SSD"
+      capacity: "1TB"
+      interface: "PCIe 3.0 x4"
+      sequential_read: "3500 MB/s"
+      sequential_write: "2300 MB/s"
+      random_iops_read: "500000"
+      random_iops_write: "450000"
+    
+    secondary_storage:
+      type: "SAS SSD"
+      capacity: "2TB"
+      interface: "SAS 12Gb/s"
+      sequential_read: "2100 MB/s"
+      sequential_write: "1200 MB/s"
+      
+  networking:
+    onboard_nics:
+      - interface: "Broadcom NetXtreme BCM5720"
+        ports: 4
+        speed: "1 GbE"
+      - interface: "Intel X710"
+        ports: 2  
+        speed: "10 GbE"
+        sr_iov_support: true
+        
+  power_consumption:
+    max_power: "750W"
+    typical_power: "350W"
+    power_supplies: "2x 495W redundant"
+    
+  operating_conditions:
+    temperature_range: "10°C to 35°C"
+    humidity_range: "20% to 80% RH"
+    altitude_max: "3048 m"
+
+# Computing Node Capacity Mapping
+computing_node_specifications:
+  cloud_tier:
+    base_frequency: "2.30 GHz"
+    turbo_frequency: "3.20 GHz" 
+    cores_per_node: 12
+    memory_per_node: "32 GB"
+    storage_type: "NVMe SSD"
+    gpu_acceleration: true
+    
+  fog_tier:
+    base_frequency: "2.30 GHz"
+    cores_per_node: 4
+    memory_per_node: "8 GB"
+    storage_type: "SAS SSD"
+    gpu_acceleration: false
+    
+  edge_tier:
+    # Emulated edge computing nodes with constrained resources
+    base_frequency: "1.20 GHz"
+    cores_per_node: 1
+    memory_per_node: "2 GB"
+    storage_type: "eMMC"
+    gpu_acceleration: false
+    emulation_note: "Characteristics emulate resource-constrained edge environments"
+
+# Performance Characteristics Derived from Hardware
+performance_baselines:
+  cpu_performance:
+    cloud_single_thread: "2.60 GHz base, 3.90 GHz turbo"
+    fog_single_thread: "2.60 GHz base"
+    edge_single_thread: "1.20 GHz emulated"
+    
+  memory_bandwidth:
+    cloud: "119 GB/s (DDR4-2400, 6-channel)"
+    fog: "38 GB/s (DDR4-2400, 2-channel)"  
+    edge: "12.8 GB/s (emulated LPDDR4)"
+    
+  storage_performance:
+    cloud_nvme_read: "3500 MB/s"
+    cloud_nvme_write: "2300 MB/s"
+    fog_sas_read: "2100 MB/s"
+    fog_sas_write: "1200 MB/s"
+    edge_emulated_read: "300 MB/s"
+    edge_emulated_write: "150 MB/s"

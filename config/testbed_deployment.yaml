@@ -1,0 +1,102 @@
+# blockchain Blockchain Deployment Configuration
+# Configuration for multi-tier blockchain deployment
+
+blockchain:
+  name: "blockchain-Blockchain"
+  version: "1.0"
+  deployment_environment: "hybrid_cloud_edge"
+
+infrastructure:
+  cloud_tier:
+    provider: "AWS"
+    region: "us-east-1"
+    instance_types: ["c5.2xlarge", "c5.4xlarge"]
+    node_count: 2
+    storage: "1TB EBS gp3"
+    
+  fog_tier:
+    deployment_type: "kubernetes"
+    clusters: 
+      - name: "fog-cluster-1"
+        location: "edge_datacenter_nyc"
+        nodes: 15
+        instance_type: "c5.xlarge"
+      - name: "fog-cluster-2" 
+        location: "edge_datacenter_sfo"
+        nodes: 15
+        instance_type: "c5.xlarge"
+    
+  edge_tier:
+    emulated_node_characteristics:
+      - profile: "low_power_edge"
+        cpu_cores: 2
+        cpu_frequency: "1.0-2.0 GHz"
+        memory: "2-4 GB"
+        storage: "32-128 GB"
+        node_count: 300
+      - profile: "medium_edge"
+        cpu_cores: 4
+        cpu_frequency: "1.5-2.5 GHz"
+        memory: "4-8 GB"
+        storage: "128-256 GB"  
+        node_count: 150
+      - profile: "high_edge"
+        cpu_cores: 4
+        cpu_frequency: "2.0-3.0 GHz"
+        memory: "8-16 GB"
+        storage: "256-512 GB"
+        node_count: 50
+    total_emulated_nodes: 500
+    geographic_distribution:
+      - region: "north_america_east"
+        node_count: 200
+      - region: "north_america_west"
+        node_count: 150
+      - region: "europe"
+        node_count: 150
+
+blockchain:
+  consensus_protocol: "BFT-Smart"
+  sharding:
+    max_shards: 80
+    initial_shards: 20
+    replication_factor: 4
+  
+  hyperledger_fabric:
+    version: "2.4.0"
+    channels: ["blockchain-channel", "reputation-channel"]
+    organizations: 
+      - name: "CloudOrg"
+        peers: 4
+        orderers: 1
+      - name: "FogOrg"
+        peers: 30
+        orderers: 2
+      - name: "EdgeOrg"
+        peers: 500
+        orderers: 0
+
+networking:
+  network_slicing_enabled: true
+  slice_configurations:
+    - name: "low_latency_slice"
+      bandwidth: "100Mbps"
+      latency_target: "10ms"
+    - name: "high_throughput_slice" 
+      bandwidth: "1Gbps"
+      latency_target: "50ms"
+    - name: "iot_slice"
+      bandwidth: "10Mbps"
+      latency_target: "100ms"
+
+monitoring:
+  prometheus_enabled: true
+  grafana_enabled: true
+  log_aggregation: "elasticsearch"
+  metrics_collection_interval: "5s"
+  
+experimental_parameters:
+  transaction_rates: [10, 25, 50, 100, 200, 500]
+  workload_types: ["payment", "iot_data", "smart_contract", "mixed"]
+  duration_per_experiment: "300s"
+  reputation_update_frequency: "60s"

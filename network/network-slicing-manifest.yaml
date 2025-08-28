@@ -1,0 +1,253 @@
+# Network Slicing Implementation for blockchain
+# Implements network slices with QoS enforcement and traffic isolation
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: network-slicing-config
+  namespace: blockchain
+data:
+  slicing.conf: |
+    # Network Slice Configuration for blockchain
+    [global]
+    enable_slicing = true
+    max_slices = 10
+    default_slice = best_effort
+    
+    [slice.latency_critical]
+    type = latency_critical
+    max_latency_ms = 10
+    min_bandwidth_mbps = 50
+    priority = 1
+    isolation_level = strict
+    packet_scheduler = edf  # Earliest Deadline First
+    buffer_size_kb = 64
+    
+    [slice.bandwidth_intensive] 
+    type = bandwidth_intensive
+    max_latency_ms = 50
+    min_bandwidth_mbps = 100
+    priority = 2
+    isolation_level = moderate
+    packet_scheduler = wfq  # Weighted Fair Queuing
+    buffer_size_kb = 1024
+    
+    [slice.reliability_focused]
+    type = reliability_focused
+    max_latency_ms = 100
+    min_bandwidth_mbps = 20
+    priority = 2
+    isolation_level = strict
+    packet_scheduler = red  # Random Early Detection
+    buffer_size_kb = 256
+    redundancy_factor = 2
+    
+    [slice.best_effort]
+    type = best_effort
+    max_latency_ms = 500
+    min_bandwidth_mbps = 5
+    priority = 4
+    isolation_level = shared
+    packet_scheduler = fifo
+    buffer_size_kb = 128
+
+  routing.conf: |
+    # Traffic Routing Rules for Network Slices
+    # Maps application types to network slices
+    
+    # E-health applications -> Latency Critical
+    app_type:e_health -> slice:latency_critical
+    app_type:autonomous_vehicle -> slice:latency_critical
+    app_type:industrial_control -> slice:latency_critical
+    
+    # Media applications -> Bandwidth Intensive  
+    app_type:video_streaming -> slice:bandwidth_intensive
+    app_type:ar_vr -> slice:bandwidth_intensive
+    app_type:content_delivery -> slice:bandwidth_intensive
+    
+    # IoT applications -> Reliability Focused
+    app_type:smart_home -> slice:reliability_focused
+    app_type:environmental_monitoring -> slice:reliability_focused
+    app_type:asset_tracking -> slice:reliability_focused
+    
+    # Default applications -> Best Effort
+    app_type:* -> slice:best_effort
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: slice-isolation-policy
+  namespace: blockchain
+spec:
+  podSelector:
+    matchLabels:
+      component: blockchain-node
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: blockchain
+    - podSelector:
+        matchLabels:
+          slice-type: latency_critical
+    ports:
+    - protocol: TCP
+      port: 7051
+    - protocol: TCP  
+      port: 11000
+  - from:
+    - podSelector:
+        matchLabels:
+          slice-type: bandwidth_intensive
+    ports:
+    - protocol: TCP
+      port: 8080
+  - from:
+    - podSelector:
+        matchLabels:
+          slice-type: reliability_focused
+    ports:
+    - protocol: TCP
+      port: 9051
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: blockchain
+    ports:
+    - protocol: TCP
+      port: 7050  # Orderer
+    - protocol: TCP
+      port: 11000-11006  # BFT-Smart consensus
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: slice-controller
+  namespace: blockchain
+  labels:
+    component: network-slicing
+spec:
+  selector:
+    app: slice-controller
+  ports:
+  - name: api
+    port: 8090
+    targetPort: 8090
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  type: ClusterIP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slice-controller
+  namespace: blockchain
+  labels:
+    app: slice-controller
+    component: network-slicing
+spec:
+  replicas: 3  # High availability
+  selector:
+    matchLabels:
+      app: slice-controller
+  template:
+    metadata:
+      labels:
+        app: slice-controller
+        component: network-slicing
+    spec:
+      containers:
+      - name: slice-controller
+        image: blockchain/slice-controller:latest
+        ports:
+        - containerPort: 8090
+        - containerPort: 9090
+        env:
+        - name: SLICE_CONFIG
+          value: "/app/config/slicing.conf"
+        - name: ROUTING_CONFIG  
+          value: "/app/config/routing.conf"
+        - name: METRICS_INTERVAL
+          value: "5"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+        - name: metrics-volume
+          mountPath: /app/metrics
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8090
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8090
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config-volume
+        configMap:
+          name: network-slicing-config
+      - name: metrics-volume
+        emptyDir: {}
+
+---
+# Traffic Shaping ConfigMap for QoS enforcement
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: traffic-shaping-rules
+  namespace: blockchain
+data:
+  tc-rules.sh: |
+    #!/bin/bash
+    # Traffic Control rules for network slice QoS enforcement
+    
+    # Setup root qdisc
+    tc qdisc add dev eth0 root handle 1: htb default 40
+    
+    # Latency Critical Slice (Class 1:10) - 50Mbps, prio 1
+    tc class add dev eth0 parent 1: classid 1:10 htb rate 50mbit ceil 100mbit prio 1
+    tc qdisc add dev eth0 parent 1:10 handle 10: pfifo limit 10
+    
+    # Bandwidth Intensive Slice (Class 1:20) - 100Mbps, prio 2  
+    tc class add dev eth0 parent 1: classid 1:20 htb rate 100mbit ceil 200mbit prio 2
+    tc qdisc add dev eth0 parent 1:20 handle 20: sfq perturb 10
+    
+    # Reliability Focused Slice (Class 1:30) - 20Mbps, prio 2
+    tc class add dev eth0 parent 1: classid 1:30 htb rate 20mbit ceil 50mbit prio 2
+    tc qdisc add dev eth0 parent 1:30 handle 30: red limit 1000000 avpkt 1000
+    
+    # Best Effort Slice (Class 1:40) - 5Mbps, prio 4
+    tc class add dev eth0 parent 1: classid 1:40 htb rate 5mbit ceil 20mbit prio 4
+    tc qdisc add dev eth0 parent 1:40 handle 40: pfifo limit 100
+    
+    # Filtering rules
+    # Latency critical traffic (DSCP 46) -> Class 1:10
+    tc filter add dev eth0 protocol ip parent 1:0 prio 1 u32 match ip tos 0xb8 0xfc flowid 1:10
+    
+    # Bandwidth intensive traffic (DSCP 34) -> Class 1:20  
+    tc filter add dev eth0 protocol ip parent 1:0 prio 2 u32 match ip tos 0x88 0xfc flowid 1:20
+    
+    # Reliability focused traffic (DSCP 26) -> Class 1:30
+    tc filter add dev eth0 protocol ip parent 1:0 prio 3 u32 match ip tos 0x68 0xfc flowid 1:30
+    
+    # Default traffic -> Class 1:40
+    tc filter add dev eth0 protocol ip parent 1:0 prio 4 u32 match ip dst 0.0.0.0/0 flowid 1:40

@@ -1,0 +1,165 @@
+# Docker Compose configuration for blockchain deployment
+version: '3.8'
+
+networks:
+  blockchain-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+services:
+  # BFT-Smart Consensus Orderer (Cloud Tier)
+  bftsmart-orderer-0:
+    build:
+      context: ./fabric-samples/bft-smart-integration
+      dockerfile: Dockerfile
+    environment:
+      - BFT_REPLICA_ID=0
+      - BFT_TIER_LOCATION=cloud
+      - BFT_CONFIG_PATH=/app/config/bftsmart.config
+      - FABRIC_ORDERER_ENDPOINT=orderer.local:7050
+    volumes:
+      - ./fabric-samples/bft-smart-integration/config:/app/config
+      - ./logs/consensus:/app/logs/consensus
+    ports:
+      - "11000:11000"  # BFT-Smart consensus port
+      - "7050:7050"    # Fabric orderer port
+    networks:
+      blockchain-network:
+        ipv4_address: 172.20.0.10
+        
+  # BFT-Smart Consensus Orderer (Fog Tier) 
+  bftsmart-orderer-2:
+    build:
+      context: ./fabric-samples/bft-smart-integration
+      dockerfile: Dockerfile
+    environment:
+      - BFT_REPLICA_ID=2
+      - BFT_TIER_LOCATION=fog
+      - BFT_CONFIG_PATH=/app/config/bftsmart.config
+    volumes:
+      - ./fabric-samples/bft-smart-integration/config:/app/config
+      - ./logs/consensus:/app/logs/consensus
+    ports:
+      - "11002:11002"
+    networks:
+      blockchain-network:
+        ipv4_address: 172.20.0.12
+
+  # Cloud Tier Peer
+  peer0.cloud.local:
+    image: hyperledger/fabric-peer:2.4.0
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=blockchain_blockchain-network
+      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_PEER_ID=peer0.cloud.local
+      - CORE_PEER_ADDRESS=peer0.cloud.local:7051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:7051
+      - CORE_PEER_CHAINCODEADDRESS=peer0.cloud.local:7052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:7052
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.cloud.local:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.cloud.local:7051
+      - CORE_PEER_LOCALMSPID=CloudMSP
+    volumes:
+      - /var/run/:/host/var/run/
+      - ./fabric-config/cloud-peer/msp:/etc/hyperledger/fabric/msp
+    ports:
+      - "7051:7051"
+    networks:
+      blockchain-network:
+        ipv4_address: 172.20.0.20
+
+  # Fog Tier Peer
+  peer0.fog.local:
+    image: hyperledger/fabric-peer:2.4.0
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=blockchain_blockchain-network
+      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_PEER_ID=peer0.fog.local
+      - CORE_PEER_ADDRESS=peer0.fog.local:8051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:8051
+      - CORE_PEER_CHAINCODEADDRESS=peer0.fog.local:8052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:8052
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.fog.local:8051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.fog.local:8051
+      - CORE_PEER_LOCALMSPID=FogMSP
+    volumes:
+      - /var/run/:/host/var/run/
+      - ./fabric-config/fog-peer/msp:/etc/hyperledger/fabric/msp
+    ports:
+      - "8051:8051"
+    networks:
+      blockchain-network:
+        ipv4_address: 172.20.0.30
+
+  # Edge Tier Peer (Representative)
+  peer0.edge.local:
+    image: hyperledger/fabric-peer:2.4.0
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=blockchain_blockchain-network
+      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_PEER_ID=peer0.edge.local
+      - CORE_PEER_ADDRESS=peer0.edge.local:9051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:9051
+      - CORE_PEER_CHAINCODEADDRESS=peer0.edge.local:9052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:9052
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.edge.local:9051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.edge.local:9051
+      - CORE_PEER_LOCALMSPID=EdgeMSP
+    volumes:
+      - /var/run/:/host/var/run/
+      - ./fabric-config/edge-peer/msp:/etc/hyperledger/fabric/msp
+    ports:
+      - "9051:9051"
+    networks:
+      blockchain-network:
+        ipv4_address: 172.20.0.40
+
+  # blockchain Blockchain Manager
+  blockchain:
+    build: 
+      context: .
+      dockerfile: Dockerfile.blockchain
+    environment:
+      - PYTHONPATH=/app/src
+      - BLOCKCHAIN_CONFIG=/app/config/blockchain_deployment.yaml
+    volumes:
+      - ./src:/app/src
+      - ./config:/app/config
+      - ./data:/app/data
+    ports:
+      - "8080:8080"
+    depends_on:
+      - orderer.local
+      - peer0.cloud.local
+      - peer0.fog.local
+      - peer0.edge.local
+    networks:
+      blockchain-network:
+        ipv4_address: 172.20.0.100
+
+  # Prometheus for monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      blockchain-network:
+        ipv4_address: 172.20.0.200
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      blockchain-network:
+        ipv4_address: 172.20.0.201

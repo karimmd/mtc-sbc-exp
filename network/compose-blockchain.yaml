@@ -1,0 +1,289 @@
+# Multi-Tier Computing Sharded Blockchain Network Configuration
+# Based on Hyperledger Fabric with edge, fog, and cloud tiers
+
+version: '3.7'
+
+volumes:
+  orderer.local:
+  peer0.cloud.local:
+  peer1.cloud.local:
+  peer0.fog.local:
+  peer1.fog.local:
+  peer2.fog.local:
+  peer0.edge.local:
+  peer1.edge.local:
+  peer2.edge.local:
+  peer3.edge.local:
+
+networks:
+  blockchain:
+    name: fabric_blockchain
+
+services:
+
+  # Ordering Service
+  orderer.local:
+    container_name: orderer.local
+    image: hyperledger/fabric-orderer:latest
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_LOGGING_SPEC=INFO
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_LISTENPORT=7050
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
+      # TLS Configuration
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_CLUSTER_CLIENTCERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_CLUSTER_CLIENTPRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_CLUSTER_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_BOOTSTRAPMETHOD=none
+      - ORDERER_CHANNELPARTICIPATION_ENABLED=true
+      - ORDERER_ADMIN_TLS_ENABLED=true
+      - ORDERER_ADMIN_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_ADMIN_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_ADMIN_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_ADMIN_TLS_CLIENTROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_ADMIN_LISTENADDRESS=0.0.0.0:7053
+      - ORDERER_OPERATIONS_LISTENADDRESS=orderer.local:9443
+      - ORDERER_METRICS_PROVIDER=prometheus
+    working_dir: /root
+    command: orderer
+    volumes:
+        - ../organizations/ordererOrganizations/local/orderers/orderer.local/msp:/var/hyperledger/orderer/msp
+        - ../organizations/ordererOrganizations/local/orderers/orderer.local/tls/:/var/hyperledger/orderer/tls
+        - orderer.local:/var/hyperledger/production/orderer
+    ports:
+      - 7050:7050
+      - 7053:7053
+      - 9443:9443
+    networks:
+      - blockchain
+
+  # Cloud Tier Peers
+  peer0.cloud.local:
+    container_name: peer0.cloud.local
+    image: hyperledger/fabric-peer:latest
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_CFG_PATH=/etc/hyperledger/peercfg
+      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_PROFILE_ENABLED=false
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
+      - CORE_PEER_ID=peer0.cloud.local
+      - CORE_PEER_ADDRESS=peer0.cloud.local:7051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:7051
+      - CORE_PEER_CHAINCODEADDRESS=peer0.cloud.local:7052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:7052
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.cloud.local:8051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.cloud.local:7051
+      - CORE_PEER_LOCALMSPID=CloudMSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      - CORE_OPERATIONS_LISTENADDRESS=peer0.cloud.local:9444
+      - CORE_METRICS_PROVIDER=prometheus
+      - CHAINCODE_AS_A_SERVICE_BUILDER_CONFIG={"peername":"peer0cloud"}
+      - CORE_CHAINCODE_EXECUTETIMEOUT=300s
+      # blockchain Specific Configuration
+      - CORE_PEER_TIER=cloud
+      - CORE_PEER_COMPUTING_CAPACITY=8000 # 8 GHz equivalent
+      - CORE_PEER_MEMORY_CAPACITY=65536 # 64 GB
+      - CORE_PEER_STORAGE_CAPACITY=10737418240 # 10 TB
+    volumes:
+        - ../organizations/peerOrganizations/cloud.local/peers/peer0.cloud.local:/etc/hyperledger/fabric
+        - peer0.cloud.local:/var/hyperledger/production
+    working_dir: /root
+    command: peer node start
+    ports:
+      - 7051:7051
+      - 9444:9444
+    networks:
+      - blockchain
+
+  peer1.cloud.local:
+    container_name: peer1.cloud.local
+    image: hyperledger/fabric-peer:latest
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_CFG_PATH=/etc/hyperledger/peercfg
+      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_PROFILE_ENABLED=false
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
+      - CORE_PEER_ID=peer1.cloud.local
+      - CORE_PEER_ADDRESS=peer1.cloud.local:8051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:8051
+      - CORE_PEER_CHAINCODEADDRESS=peer1.cloud.local:8052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:8052
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1.cloud.local:8051
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.cloud.local:7051
+      - CORE_PEER_LOCALMSPID=CloudMSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      - CORE_OPERATIONS_LISTENADDRESS=peer1.cloud.local:9445
+      - CORE_METRICS_PROVIDER=prometheus
+      - CHAINCODE_AS_A_SERVICE_BUILDER_CONFIG={"peername":"peer1cloud"}
+      - CORE_CHAINCODE_EXECUTETIMEOUT=300s
+      # blockchain Specific Configuration
+      - CORE_PEER_TIER=cloud
+      - CORE_PEER_COMPUTING_CAPACITY=8000
+      - CORE_PEER_MEMORY_CAPACITY=65536
+      - CORE_PEER_STORAGE_CAPACITY=10737418240
+    volumes:
+        - ../organizations/peerOrganizations/cloud.local/peers/peer1.cloud.local:/etc/hyperledger/fabric
+        - peer1.cloud.local:/var/hyperledger/production
+    working_dir: /root
+    command: peer node start
+    ports:
+      - 8051:8051
+      - 9445:9445
+    networks:
+      - blockchain
+
+  # Fog Tier Peers (Multiple peers for higher fault tolerance)
+  peer0.fog.local:
+    container_name: peer0.fog.local
+    image: hyperledger/fabric-peer:latest
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_CFG_PATH=/etc/hyperledger/peercfg
+      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_PROFILE_ENABLED=false
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
+      - CORE_PEER_ID=peer0.fog.local
+      - CORE_PEER_ADDRESS=peer0.fog.local:7055
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:7055
+      - CORE_PEER_CHAINCODEADDRESS=peer0.fog.local:7056
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:7056
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.fog.local:7055
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.fog.local:8055
+      - CORE_PEER_LOCALMSPID=FogMSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      - CORE_OPERATIONS_LISTENADDRESS=peer0.fog.local:9446
+      - CORE_METRICS_PROVIDER=prometheus
+      - CHAINCODE_AS_A_SERVICE_BUILDER_CONFIG={"peername":"peer0fog"}
+      - CORE_CHAINCODE_EXECUTETIMEOUT=300s
+      # blockchain Specific Configuration
+      - CORE_PEER_TIER=fog
+      - CORE_PEER_COMPUTING_CAPACITY=4000 # 4 GHz equivalent
+      - CORE_PEER_MEMORY_CAPACITY=16384 # 16 GB
+      - CORE_PEER_STORAGE_CAPACITY=536870912 # 512 GB
+    volumes:
+        - ../organizations/peerOrganizations/fog.local/peers/peer0.fog.local:/etc/hyperledger/fabric
+        - peer0.fog.local:/var/hyperledger/production
+    working_dir: /root
+    command: peer node start
+    ports:
+      - 7055:7055
+      - 9446:9446
+    networks:
+      - blockchain
+
+  # Edge Tier Peers (Multiple lightweight peers)
+  peer0.edge.local:
+    container_name: peer0.edge.local
+    image: hyperledger/fabric-peer:latest
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_CFG_PATH=/etc/hyperledger/peercfg
+      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_PROFILE_ENABLED=false
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
+      - CORE_PEER_ID=peer0.edge.local
+      - CORE_PEER_ADDRESS=peer0.edge.local:7061
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:7061
+      - CORE_PEER_CHAINCODEADDRESS=peer0.edge.local:7062
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:7062
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.edge.local:7061
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.edge.local:8061
+      - CORE_PEER_LOCALMSPID=EdgeMSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      - CORE_OPERATIONS_LISTENADDRESS=peer0.edge.local:9447
+      - CORE_METRICS_PROVIDER=prometheus
+      - CHAINCODE_AS_A_SERVICE_BUILDER_CONFIG={"peername":"peer0edge"}
+      - CORE_CHAINCODE_EXECUTETIMEOUT=300s
+      # blockchain Specific Configuration  
+      - CORE_PEER_TIER=edge
+      - CORE_PEER_COMPUTING_CAPACITY=1500 # 1.5 GHz equivalent
+      - CORE_PEER_MEMORY_CAPACITY=2048 # 2 GB
+      - CORE_PEER_STORAGE_CAPACITY=134217728 # 128 GB
+    volumes:
+        - ../organizations/peerOrganizations/edge.local/peers/peer0.edge.local:/etc/hyperledger/fabric
+        - peer0.edge.local:/var/hyperledger/production
+    working_dir: /root
+    command: peer node start
+    ports:
+      - 7061:7061
+      - 9447:9447
+    networks:
+      - blockchain
+
+  # blockchain Flask Service Manager
+  flask-service-manager:
+    container_name: flask-service-manager
+    image: python:3.11-slim
+    labels:
+      service: blockchain-flask
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FLASK_ENV=production
+      - PEER_DISCOVERY_ENABLED=true
+      - CROSS_TIER_COMMUNICATION=true
+    volumes:
+      - ../src/networking/flask_services.py:/app/flask_services.py
+      - ../requirements.txt:/app/requirements.txt
+    working_dir: /app
+    command: >
+      bash -c "
+        pip install -r requirements.txt &&
+        python flask_services.py
+      "
+    ports:
+      - "5000-5100:5000-5100"
+    networks:
+      - blockchain
+    depends_on:
+      - peer0.cloud.local
+      - peer0.fog.local
+      - peer0.edge.local
+
+  # CLI for interacting with the network
+  cli:
+    container_name: cli
+    image: hyperledger/fabric-tools:latest
+    labels:
+      service: hyperledger-fabric
+    tty: true
+    stdin_open: true
+    environment:
+      - GOPATH=/opt/gopath
+      - FABRIC_LOGGING_SPEC=INFO
+      - FABRIC_CFG_PATH=/etc/hyperledger/peercfg
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: /bin/bash
+    volumes:
+      - ../organizations:/opt/gopath/src/github.com/hyperledger/fabric/peer/organizations
+      - ../chaincodes:/opt/gopath/src/github.com/hyperledger/fabric/peer/chaincodes
+    depends_on:
+      - peer0.cloud.local
+      - peer0.fog.local
+      - peer0.edge.local
+    networks:
+      - blockchain

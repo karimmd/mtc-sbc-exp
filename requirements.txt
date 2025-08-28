@@ -1,0 +1,12 @@
+numpy
+scipy
+matplotlib
+pandas
+cryptography
+flask
+requests
+cvxpy
+networkx
+scikit-learn
+pyyaml
+psutil

@@ -1,0 +1,193 @@
+# Blockchain Network Configuration for Hyperledger Fabric
+
+Organizations:
+  - &OrdererOrg
+    Name: OrdererOrg
+    ID: OrdererMSP
+    MSPDir: ../organizations/ordererOrganizations/local/msp
+    Policies:
+      Readers:
+        Type: Signature
+        Rule: "OR('OrdererMSP.member')"
+      Writers:
+        Type: Signature
+        Rule: "OR('OrdererMSP.member')"
+      Admins:
+        Type: Signature
+        Rule: "OR('OrdererMSP.admin')"
+    OrdererEndpoints:
+      - orderer.local:7050
+
+  - &CloudOrg
+    Name: CloudOrgMSP
+    ID: CloudMSP
+    MSPDir: ../organizations/peerOrganizations/cloud.local/msp
+    Policies:
+      Readers:
+        Type: Signature
+        Rule: "OR('CloudMSP.admin', 'CloudMSP.peer', 'CloudMSP.client')"
+      Writers:
+        Type: Signature
+        Rule: "OR('CloudMSP.admin', 'CloudMSP.client')"
+      Admins:
+        Type: Signature
+        Rule: "OR('CloudMSP.admin')"
+      Endorsement:
+        Type: Signature
+        Rule: "OR('CloudMSP.peer')"
+    AnchorPeers:
+      - Host: peer0.cloud.local
+        Port: 7051
+
+  - &FogOrg
+    Name: FogOrgMSP
+    ID: FogMSP
+    MSPDir: ../organizations/peerOrganizations/fog.local/msp
+    Policies:
+      Readers:
+        Type: Signature
+        Rule: "OR('FogMSP.admin', 'FogMSP.peer', 'FogMSP.client')"
+      Writers:
+        Type: Signature
+        Rule: "OR('FogMSP.admin', 'FogMSP.client')"
+      Admins:
+        Type: Signature
+        Rule: "OR('FogMSP.admin')"
+      Endorsement:
+        Type: Signature
+        Rule: "OR('FogMSP.peer')"
+    AnchorPeers:
+      - Host: peer0.fog.local
+        Port: 7055
+
+  - &EdgeOrg
+    Name: EdgeOrgMSP
+    ID: EdgeMSP
+    MSPDir: ../organizations/peerOrganizations/edge.local/msp
+    Policies:
+      Readers:
+        Type: Signature
+        Rule: "OR('EdgeMSP.admin', 'EdgeMSP.peer', 'EdgeMSP.client')"
+      Writers:
+        Type: Signature
+        Rule: "OR('EdgeMSP.admin', 'EdgeMSP.client')"
+      Admins:
+        Type: Signature
+        Rule: "OR('EdgeMSP.admin')"
+      Endorsement:
+        Type: Signature
+        Rule: "OR('EdgeMSP.peer')"
+    AnchorPeers:
+      - Host: peer0.edge.local
+        Port: 7061
+
+Capabilities:
+  Channel: &ChannelCapabilities
+    V2_0: true
+
+  Orderer: &OrdererCapabilities
+    V2_0: true
+
+  Application: &ApplicationCapabilities
+    V2_5: true
+
+Application: &ApplicationDefaults
+  Organizations:
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    LifecycleEndorsement:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Endorsement"
+    Endorsement:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Endorsement"
+  Capabilities:
+    <<: *ApplicationCapabilities
+
+Orderer: &OrdererDefaults
+  BatchTimeout: 2s
+  BatchSize:
+    MaxMessageCount: 10
+    AbsoluteMaxBytes: 99 MB
+    PreferredMaxBytes: 512 KB
+  Organizations:
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    BlockValidation:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+
+Channel: &ChannelDefaults
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+  Capabilities:
+    <<: *ChannelCapabilities
+
+Profiles:
+  BlockchainChannel:
+    Consortium: BlockchainConsortium
+    <<: *ChannelDefaults
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *CloudOrg
+        - *FogOrg
+        - *EdgeOrg
+      Capabilities:
+        <<: *ApplicationCapabilities
+
+  ReputationChannel:
+    Consortium: BlockchainConsortium
+    <<: *ChannelDefaults
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *CloudOrg
+        - *FogOrg
+        - *EdgeOrg
+      Capabilities:
+        <<: *ApplicationCapabilities
+
+  BlockchainOrdererGenesis:
+    <<: *ChannelDefaults
+    Capabilities:
+      <<: *ChannelCapabilities
+    Orderer:
+      <<: *OrdererDefaults
+      OrdererType: BFT
+      Addresses:
+        - orderer.local:7050
+      Organizations:
+        - *OrdererOrg
+      Capabilities:
+        <<: *OrdererCapabilities
+    Consortiums:
+      BlockchainConsortium:
+        Organizations:
+          - *CloudOrg
+          - *FogOrg
+          - *EdgeOrg

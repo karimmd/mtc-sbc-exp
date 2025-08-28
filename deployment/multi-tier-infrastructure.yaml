@@ -1,0 +1,199 @@
+# Multi-Tier Computing Infrastructure Deployment
+# Kubernetes deployment configuration for edge-fog-cloud tiers
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: blockchain
+  labels:
+    blockchain: blockchain
+    deployment: multi-tier
+---
+# Cloud Tier Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-tier-nodes
+  namespace: blockchain
+  labels:
+    tier: cloud
+    component: computing-node
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      tier: cloud
+      app: blockchain-node
+  template:
+    metadata:
+      labels:
+        tier: cloud
+        app: blockchain-node
+    spec:
+      containers:
+      - name: cloud-node
+        image: blockchain/cloud-node:latest
+        resources:
+          requests:
+            cpu: "4"
+            memory: "8Gi"
+            ephemeral-storage: "100Gi"
+          limits:
+            cpu: "8" 
+            memory: "16Gi"
+            ephemeral-storage: "200Gi"
+        env:
+        - name: NODE_TIER
+          value: "cloud"
+        - name: COMPUTING_CAPACITY
+          value: "4.8"  # GHz/core
+        - name: REPLICA_COUNT
+          value: "4"
+        - name: BFT_SMART_ID
+          value: "0,1"
+        ports:
+        - containerPort: 7051  # Fabric peer
+        - containerPort: 11000 # BFT-Smart consensus
+        - containerPort: 8080  # Node API
+        volumeMounts:
+        - name: blockchain-data
+          mountPath: /var/hyperledger/production
+        - name: consensus-logs
+          mountPath: /app/logs/consensus
+      volumes:
+      - name: blockchain-data
+        persistentVolumeClaim:
+          claimName: cloud-blockchain-pvc
+      - name: consensus-logs
+        persistentVolumeClaim:
+          claimName: cloud-logs-pvc
+      nodeSelector:
+        tier: cloud
+        instance-type: "c5.4xlarge"
+---
+# Fog Tier Deployment  
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fog-tier-nodes
+  namespace: blockchain
+  labels:
+    tier: fog
+    component: computing-node
+spec:
+  replicas: 30
+  selector:
+    matchLabels:
+      tier: fog
+      app: blockchain-node
+  template:
+    metadata:
+      labels:
+        tier: fog
+        app: blockchain-node
+    spec:
+      containers:
+      - name: fog-node
+        image: blockchain/fog-node:latest
+        resources:
+          requests:
+            cpu: "2"
+            memory: "4Gi" 
+            ephemeral-storage: "50Gi"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+            ephemeral-storage: "100Gi"
+        env:
+        - name: NODE_TIER
+          value: "fog"
+        - name: COMPUTING_CAPACITY
+          value: "2.4"  # GHz/core
+        - name: REPLICA_COUNT
+          value: "1"
+        - name: BFT_SMART_ID
+          value: "2,3,4"
+        ports:
+        - containerPort: 8051  # Fabric peer
+        - containerPort: 11002 # BFT-Smart consensus
+        - containerPort: 8080  # Node API
+        volumeMounts:
+        - name: blockchain-data
+          mountPath: /var/hyperledger/production
+        - name: reputation-data
+          mountPath: /app/data/reputation
+      volumes:
+      - name: blockchain-data
+        persistentVolumeClaim:
+          claimName: fog-blockchain-pvc
+      - name: reputation-data
+        configMap:
+          name: reputation-config
+      nodeSelector:
+        tier: fog
+        instance-type: "c5.xlarge"
+---
+# Edge Tier DaemonSet (500 devices)
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: edge-tier-nodes
+  namespace: blockchain
+  labels:
+    tier: edge
+    component: computing-node
+spec:
+  selector:
+    matchLabels:
+      tier: edge
+      app: blockchain-node
+  template:
+    metadata:
+      labels:
+        tier: edge
+        app: blockchain-node
+    spec:
+      containers:
+      - name: edge-node
+        image: blockchain/edge-node:latest
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+            ephemeral-storage: "10Gi"
+          limits:
+            cpu: "1"
+            memory: "2Gi" 
+            ephemeral-storage: "20Gi"
+        env:
+        - name: NODE_TIER
+          value: "edge"
+        - name: COMPUTING_CAPACITY
+          value: "1.2"  # GHz/core (ARM-based)
+        - name: REPLICA_COUNT
+          value: "0.2"  # Partial replica participation
+        - name: BFT_SMART_ID
+          value: "5,6"
+        ports:
+        - containerPort: 9051  # Fabric peer
+        - containerPort: 11005 # BFT-Smart consensus
+        - containerPort: 8080  # Node API
+        volumeMounts:
+        - name: edge-storage
+          mountPath: /app/data
+        - name: device-config
+          mountPath: /app/config
+      volumes:
+      - name: edge-storage
+        hostPath:
+          path: /var/blockchain/edge-data
+          type: DirectoryOrCreate
+      - name: device-config
+        configMap:
+          name: edge-device-config
+      tolerations:
+      - key: "edge-device"
+        operator: "Exists"
+        effect: "NoSchedule"
+      nodeSelector:
+        device-type: "edge"

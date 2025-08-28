@@ -1,0 +1,99 @@
+# Blockchain System Configuration
+
+# Shard Configuration
+shards:
+  - id: payment_shard
+    capacity: 100.0
+    location: us-east-1
+    peers:
+      - peer0.shardorg.local:7055
+    specialization:
+      - payment_processing
+      - financial_transactions
+      - billing_services
+
+  - id: analytics_shard
+    capacity: 150.0
+    location: us-west-2
+    peers:
+      - peer1.shardorg.local:8055
+    specialization:
+      - data_analytics
+      - reporting
+      - business_intelligence
+
+  - id: iot_shard
+    capacity: 200.0
+    location: eu-west-1
+    peers:
+      - peer2.shardorg.local:9055
+    specialization:
+      - iot_data_processing
+      - sensor_networks
+      - real_time_monitoring
+
+# Network Configuration
+network:
+  consensus_algorithm: "BFT-Smart"
+  block_size: 32
+  block_time: 3000  # milliseconds
+  max_tx_per_block: 2000
+
+# Service Types
+services:
+  payment_service:
+    latency_requirement: 100  # ms
+    throughput_requirement: 1000  # TPS
+    consistency: "strong"
+    priority: 5
+
+  analytics_service:
+    latency_requirement: 500  # ms
+    throughput_requirement: 200  # TPS
+    consistency: "eventual"
+    priority: 3
+
+  iot_service:
+    latency_requirement: 200  # ms
+    throughput_requirement: 5000  # TPS
+    consistency: "weak"
+    priority: 4
+
+# Resource Management
+resources:
+  cpu_allocation:
+    cloud_tier: 8000  # MHz
+    fog_tier: 4000    # MHz
+    edge_tier: 1500   # MHz
+    
+  memory_allocation:
+    cloud_tier: 65536  # MB
+    fog_tier: 16384   # MB
+    edge_tier: 2048   # MB
+    
+  storage_allocation:
+    cloud_tier: 10485760  # MB (10TB)
+    fog_tier: 524288     # MB (512GB)
+    edge_tier: 131072    # MB (128GB)
+
+# Performance Monitoring
+monitoring:
+  metrics_collection_interval: 5000  # ms
+  performance_thresholds:
+    max_latency: 1000  # ms
+    min_throughput: 100  # TPS
+    max_cpu_utilization: 85  # %
+    max_memory_utilization: 80  # %
+
+# Load Balancing
+load_balancing:
+  strategy: "service_aware"
+  rebalance_threshold: 0.8
+  migration_cost_weight: 0.3
+  performance_weight: 0.7
+
+# Fault Tolerance
+fault_tolerance:
+  replication_factor: 3
+  backup_interval: 300000  # ms (5 minutes)
+  recovery_timeout: 60000  # ms (1 minute)
